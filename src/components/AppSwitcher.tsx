@@ -1,0 +1,86 @@
+import { useState } from 'react'
+import {
+  Avatar, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Popover, Tooltip, Typography,
+} from '@mui/material'
+import AppsIcon from '@mui/icons-material/Apps'
+import { GrowIcon, PeopleIcon, SupportIcon, WorkIcon } from './ElevanceIcons'
+import { COMPANY_DOMAIN } from '../lib/constants'
+import { useStandalone } from './useStandalone'
+import { suiteLinks, switchUrl, type SuiteAppId } from '../lib/suite'
+
+const LOOK: Record<SuiteAppId, { icon: typeof AppsIcon; color: string }> = {
+  work: { icon: WorkIcon, color: '#3f51b5' },
+  support: { icon: SupportIcon, color: '#2563eb' },
+  people: { icon: PeopleIcon, color: '#00796b' },
+  grow: { icon: GrowIcon, color: '#e65100' },
+}
+
+// A build may place an app somewhere other than the sibling folder.
+const OVERRIDES = {
+  work: import.meta.env.VITE_SUITE_WORK_URL as string | undefined,
+  support: import.meta.env.VITE_SUITE_SUPPORT_URL as string | undefined,
+  people: import.meta.env.VITE_SUITE_PEOPLE_URL as string | undefined,
+  grow: import.meta.env.VITE_SUITE_GROW_URL as string | undefined,
+}
+
+/**
+ * The grid icon at the top left: the way from this app to its siblings.
+ *
+ * Each entry is a plain link that carries the signed-in person's company
+ * email, so the app it opens can sign them in through Google without asking
+ * (see `lib/suite`). The app you are in is listed, marked, and goes nowhere.
+ * Not shown when the app runs installed: a link would leave its window for
+ * a browser tab, so each installed app stays on its own.
+ */
+export default function AppSwitcher({ current, email }: { current: SuiteAppId; email: string | null | undefined }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const standalone = useStandalone()
+  const base = new URL(import.meta.env.BASE_URL, window.location.href).href
+  const links = suiteLinks(current, base, OVERRIDES)
+
+  if (standalone) return null
+
+  return (
+    <>
+      <Tooltip title="Switch app">
+        <IconButton aria-label="Switch app" aria-haspopup="true" onClick={(e) => setAnchor(e.currentTarget)}>
+          <AppsIcon />
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={anchor !== null}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{ paper: { sx: { width: 300, maxWidth: 'calc(100vw - 32px)', p: 1, mt: 0.5 } } }}
+      >
+        <Typography variant="overline" sx={{ px: 1.5, color: 'text.secondary' }}>
+          Elevance apps
+        </Typography>
+        <List disablePadding aria-label="Elevance apps">
+          {links.map((app) => {
+            const Icon = LOOK[app.id].icon
+            return (
+              <ListItemButton
+                key={app.id}
+                component={app.current ? 'div' : 'a'}
+                href={app.current ? undefined : switchUrl(app.url, email, COMPANY_DOMAIN)}
+                selected={app.current}
+                aria-current={app.current ? 'page' : undefined}
+                onClick={() => setAnchor(null)}
+                sx={{ borderRadius: 2, mb: 0.5 }}
+              >
+                <ListItemIcon sx={{ minWidth: 52 }}>
+                  <Avatar variant="rounded" sx={{ width: 36, height: 36, bgcolor: LOOK[app.id].color }}>
+                    <Icon sx={{ fontSize: 22 }} />
+                  </Avatar>
+                </ListItemIcon>
+                <ListItemText primary={app.name} secondary={app.current ? 'You are here' : app.description} />
+              </ListItemButton>
+            )
+          })}
+        </List>
+      </Popover>
+    </>
+  )
+}

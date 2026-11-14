@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Checks that supabase/schema.sql describes the same database as
+# supabase/migrations/ applied in order.
+#
+# Starts a throwaway local Postgres, stubs the bits of Supabase the schema
+# touches (auth, the API roles), builds one database
+# from the migrations and one from schema.sql, and diffs their schema-only
+# dumps.
+#
+# Needs the Postgres server binaries (initdb, pg_ctl, psql, pg_dump) on PATH,
+# e.g. `brew install postgresql@16` and
+# `export PATH=/opt/homebrew/opt/postgresql@16/bin:$PATH`.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+source scripts/pg-sandbox.sh
+
+stubs=$(cat <<'SQL'
+create schema auth;
+create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz);
+create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+create function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+SQL
+)
+
+for db in from_migrations from_schema; do
+  createdb "$db"
+  psql -d "$db" -c "$stubs"
+done
+
+for f in supabase/migrations/*.sql; do
+  psql -d from_migrations -f "$f"
+done
+psql -d from_schema -f supabase/schema.sql
+
+# Newer pg_dump (17.6+, 18) wraps each dump in \restrict / \unrestrict with a
+# random key, different every run; it says nothing about the schema.
+for db in from_migrations from_schema; do
+  pg_dump -s "$db" | grep -vE '^\\(un)?restrict ' > "$tmp/$db.sql"
+done
+
+if diff -u "$tmp/from_migrations.sql" "$tmp/from_schema.sql"; then
+  echo "check-schema: schema.sql matches the migrations."
+else
+  echo "check-schema: schema.sql and the migrations disagree (diff above: - migrations, + schema.sql)." >&2
+  exit 1
+fi

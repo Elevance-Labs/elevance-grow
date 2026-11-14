@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      # A failing check stops the deploy.
+      - run: yarn lint
+      - run: yarn typecheck
+      - run: yarn test
+      # Without these the build succeeds but the page is blank.
+      - run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::Set the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY repository Variables."
+            exit 1
+          fi
+          yarn build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUITE_WORK_URL: ${{ vars.VITE_SUITE_WORK_URL }}
+          VITE_SUITE_SUPPORT_URL: ${{ vars.VITE_SUITE_SUPPORT_URL }}
+          VITE_SUITE_PEOPLE_URL: ${{ vars.VITE_SUITE_PEOPLE_URL }}
+          VITE_SUITE_GROW_URL: ${{ vars.VITE_SUITE_GROW_URL }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

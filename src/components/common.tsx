@@ -1,0 +1,204 @@
+import type { FormEvent, ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
+  LinearProgress,
+  Stack,
+  Typography,
+} from '@mui/material'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import CloseIcon from '@mui/icons-material/Close'
+import { GrowIcon } from './ElevanceIcons'
+import { usePhone } from './usePhone'
+
+export function Logo({ size = 32 }: { size?: number }) {
+  return (
+    <Avatar variant="rounded" sx={{ width: size, height: size, bgcolor: '#e65100' }}>
+      <GrowIcon sx={{ fontSize: size * 0.62 }} />
+    </Avatar>
+  )
+}
+
+/** The first load: the app's icon, centred, with a bar running beneath it. */
+export function Splash() {
+  return (
+    <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Stack spacing={3} sx={{ alignItems: 'center' }}>
+        <Logo size={72} />
+        <LinearProgress aria-label="Loading" sx={{ width: 160, borderRadius: 1 }} />
+      </Stack>
+    </Box>
+  )
+}
+
+function colorFor(name: string) {
+  let hue = 0
+  for (const ch of name) hue = (hue * 31 + ch.charCodeAt(0)) % 360
+  return `hsl(${hue} 40% 48%)`
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+export function PersonAvatar({ name, size = 36 }: { name: string; size?: number }) {
+  return (
+    <Avatar sx={{ width: size, height: size, fontSize: size * 0.4, bgcolor: colorFor(name) }}>
+      {initials(name)}
+    </Avatar>
+  )
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  back,
+  actions,
+}: {
+  title: ReactNode
+  subtitle?: ReactNode
+  back?: string
+  actions?: ReactNode
+}) {
+  return (
+    <Stack direction="row" spacing={1.5} sx={{ mb: 3, alignItems: 'center', flexWrap: 'wrap', rowGap: 1.5 }}>
+      {back && (
+        <IconButton component={Link} to={back} aria-label="Back" edge="start">
+          <ArrowBackIcon />
+        </IconButton>
+      )}
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+        <Typography variant="h5" component="h1" noWrap>
+          {title}
+        </Typography>
+        {subtitle && (
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.25 }}>
+            {subtitle}
+          </Typography>
+        )}
+      </Box>
+      {actions}
+    </Stack>
+  )
+}
+
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  destructive,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean
+  title: string
+  message: ReactNode
+  confirmLabel?: string
+  destructive?: boolean
+  busy?: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{message}</DialogContentText>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={busy}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          color={destructive ? 'error' : 'primary'}
+          loading={busy}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+export function FormDialog({
+  open,
+  title,
+  submitLabel = 'Save',
+  error,
+  busy,
+  closeButton,
+  onSubmit,
+  onClose,
+  children,
+}: {
+  open: boolean
+  title: string
+  submitLabel?: string
+  error?: string | null
+  busy?: boolean
+  // Closes only by an × in the corner: no Cancel, and clicking outside or
+  // pressing Escape leaves it open, so a long form isn't lost by accident.
+  closeButton?: boolean
+  onSubmit: () => void
+  onClose: () => void
+  children: ReactNode
+}) {
+  // A form takes the whole screen on a phone, where a dialog's margins would
+  // leave its fields a sliver.
+  const phone = usePhone()
+  return (
+    <Dialog
+      open={open}
+      onClose={busy || closeButton ? undefined : onClose}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={phone}
+      slotProps={{
+        paper: {
+          component: 'form',
+          onSubmit: (e: FormEvent) => {
+            e.preventDefault()
+            onSubmit()
+          },
+        },
+      }}
+    >
+      <DialogTitle sx={closeButton ? { pr: 7 } : undefined}>{title}</DialogTitle>
+      {closeButton && (
+        <IconButton aria-label="Close" onClick={onClose} disabled={busy} sx={{ position: 'absolute', top: 12, right: 12 }}>
+          <CloseIcon />
+        </IconButton>
+      )}
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ pt: 1 }}>
+          {children}
+          {error && <Alert severity="error">{error}</Alert>}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        {!closeButton && (
+          <Button onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" variant="contained" loading={busy}>
+          {submitLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
